@@ -29,7 +29,7 @@
 		"@iepaas/abstract-key-value-store": "0.0.1-dev.4",
 		"@iepaas/machine-provider-abstract": "0.0.1-dev.10",
 		"@iepaas/resource-provider-abstract": "0.0.1-dev.4",
-		"aws-sdk": "^2.179.0",
+		"aws-sdk": "^2.186.0",
 		"source-map-support": "^0.5.0",
 		"ssh2": "^0.5.5",
 		"node-fetch": "^1.7.3"

@@ -17,7 +17,8 @@ export async function createMachine(
 		securityGroupId,
 		snapshot,
 		elasticIpAllocationId,
-		initCommands
+		initCommands,
+		postInitCommands
 	} = options
 
 	const id = await createInstances(
@@ -28,6 +29,7 @@ export async function createMachine(
 		machineName,
 		securityGroupId,
 		initCommands,
+		postInitCommands,
 		snapshot
 	)
 	await waitForInstancesRunning(ec2, id)
@@ -69,6 +71,7 @@ const createInstances = (
 	name: string,
 	securityGroup: string,
 	initCommands: Array<string> = [],
+	postInitCommands: Array<string> = [],
 	snapshot?: Snapshot
 ) =>
 	new Promise<string>((resolve, reject) =>
@@ -104,7 +107,8 @@ const createInstances = (
 						// We will poll <machine-ip>:3000 until we get
 						// our answer. Then we will be able to say that the
 						// machine setup has finished.
-						'echo "HTTP/1.1 200 OK" | nc -l 3000 > /dev/null'
+						'echo "HTTP/1.1 200 OK" | nc -l 3000 > /dev/null',
+						...postInitCommands
 					].join("\n"),
 					"utf-8"
 				).toString("base64"),

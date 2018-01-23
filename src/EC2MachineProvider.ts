@@ -189,10 +189,12 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				...(await this.getAllConfigValues()).map(
 					it => `cd /iepaas && npm run set-config ${it.key} ${it.value}`
 				),
+				"sudo chown -R ubuntu:ubuntu /iepaas"
+			],
+			postInitCommands: [
 				`cd /iepaas && npm run set-repo-url ${await this.getConfigValue(
 					REPO_URL
-				)}`,
-				"sudo chown -R ubuntu:ubuntu /iepaas"
+				)}`
 			],
 			elasticIpAllocationId: eip.allocationId
 		})
