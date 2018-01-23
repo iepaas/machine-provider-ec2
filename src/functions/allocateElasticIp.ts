@@ -1,4 +1,5 @@
 import { EC2 } from "aws-sdk"
+import { createError } from "../support/AWSProviderError"
 
 export const allocateElasticIp = (ec2: EC2) =>
 	new Promise<{ allocationId: string; address: string }>((resolve, reject) => {
@@ -8,7 +9,7 @@ export const allocateElasticIp = (ec2: EC2) =>
 			},
 			(err, data) => {
 				if (err || !data.PublicIp || !data.AllocationId) {
-					reject(err)
+					reject(createError(err, "Allocating an Elastic IP"))
 				} else {
 					resolve({
 						allocationId: data.AllocationId,

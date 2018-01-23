@@ -1,4 +1,5 @@
 import { EC2 } from "aws-sdk"
+import { createError } from "../support/AWSProviderError"
 
 export interface PortRange {
 	from: number
@@ -22,7 +23,7 @@ export const createSecurityGroup = (
 			},
 			(err, data) => {
 				if (err) {
-					reject(err)
+					reject(createError(err, "Trying to create a security group"))
 				} else {
 					const { GroupId } = data
 
@@ -43,7 +44,12 @@ export const createSecurityGroup = (
 						},
 						err => {
 							if (err) {
-								reject(err)
+								reject(
+									createError(
+										err,
+										`Trying to authorize an inbound rule on ${GroupId}`
+									)
+								)
 							} else {
 								resolve(GroupId)
 							}

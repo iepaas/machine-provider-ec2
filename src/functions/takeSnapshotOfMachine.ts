@@ -1,6 +1,7 @@
 import { EC2 } from "aws-sdk"
 import { Machine, Snapshot } from "@iepaas/machine-provider-abstract"
 import { randomString } from "../support/randomString"
+import { createError } from "../support/AWSProviderError"
 
 export const takeSnapshotOfMachine = (ec2: EC2, machine: Machine) =>
 	new Promise<Snapshot>((resolve, reject) => {
@@ -11,12 +12,14 @@ export const takeSnapshotOfMachine = (ec2: EC2, machine: Machine) =>
 			},
 			(err, data) => {
 				if (err || !data.ImageId) {
-					reject(err)
+					reject(createError(err, `Taking a snapshot of machine ${machine.id}`))
 				} else {
 					const id = data.ImageId
 					ec2.waitFor("imageAvailable", { ImageIds: [id] }, err => {
 						if (err) {
-							reject(err)
+							reject(
+								createError(err, `Waiting for imageAvailable on snapshot ${id}`)
+							)
 						} else {
 							resolve({ id })
 						}

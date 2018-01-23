@@ -1,5 +1,6 @@
 import { EC2 } from "aws-sdk"
 import { Machine } from "@iepaas/machine-provider-abstract"
+import { createError } from "../support/AWSProviderError"
 
 export const destroyMachine = (ec2: EC2, machine: Machine) =>
 	new Promise<void>((resolve, reject) => {
@@ -9,7 +10,7 @@ export const destroyMachine = (ec2: EC2, machine: Machine) =>
 			},
 			err => {
 				if (err) {
-					reject(err)
+					reject(createError(err, `Trying to terminate instance ${machine.id}`))
 				} else {
 					resolve()
 				}

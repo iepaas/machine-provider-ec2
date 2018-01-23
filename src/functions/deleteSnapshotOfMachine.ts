@@ -1,5 +1,6 @@
 import { EC2 } from "aws-sdk"
 import { Snapshot } from "@iepaas/machine-provider-abstract"
+import { createError } from "../support/AWSProviderError"
 
 export const deleteSnapshotOfMachine = (ec2: EC2, snapshot: Snapshot) =>
 	new Promise<void>((resolve, reject) => {
@@ -9,7 +10,7 @@ export const deleteSnapshotOfMachine = (ec2: EC2, snapshot: Snapshot) =>
 			},
 			err => {
 				if (err) {
-					reject(err)
+					reject(createError(err, `Trying to deregister an ${snapshot.id}`))
 				} else {
 					resolve()
 				}

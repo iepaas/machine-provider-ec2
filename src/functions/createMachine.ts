@@ -3,6 +3,7 @@ import { EC2 } from "aws-sdk"
 import { Machine, Snapshot } from "@iepaas/machine-provider-abstract"
 import { CreateMachineOptions } from "../interfaces/CreateMachineOptions"
 import { allocateElasticIp } from "./allocateElasticIp"
+import { createError } from "../support/AWSProviderError"
 
 export async function createMachine(
 	ec2: EC2,
@@ -132,7 +133,9 @@ const waitForInstancesRunning = (ec2: EC2, id: string) =>
 			},
 			err => {
 				if (err) {
-					reject(err)
+					reject(
+						createError(err, `waiting for the instance ${id} to be running`)
+					)
 				} else {
 					resolve()
 				}
@@ -163,8 +166,6 @@ const waitForCloudInitFinished = async (address: string, timeout?: number) => {
 				throw e
 			}
 		}
-
-		// throw new Error("Expected an error to be throw when polling the machine")
 	}
 
 	await Promise.race<void>([
@@ -201,12 +202,18 @@ const associateElasticIp = (
 		try {
 			ec2.associateAddress(
 				{
-					AllocationId: ipAllocationId || (await allocateElasticIp(ec2)).allocationId,
+					AllocationId:
+						ipAllocationId || (await allocateElasticIp(ec2)).allocationId,
 					InstanceId: instanceId
 				},
 				err => {
 					if (err) {
-						reject(err)
+						reject(
+							createError(
+								err,
+								`Associating an elastic IP to instance ${instanceId}`
+							)
+						)
 					} else {
 						resolve()
 					}
@@ -231,7 +238,7 @@ const getInstanceInformation = (ec2: EC2, id: string) =>
 					!data.Reservations[0].Instances ||
 					!data.Reservations[0].Instances![0]
 				) {
-					reject(err)
+					reject(createError(err, `querying instance info for instance ${id}`))
 				} else {
 					const instance = data.Reservations[0].Instances![0]
 
