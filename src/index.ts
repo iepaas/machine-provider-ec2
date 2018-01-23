@@ -1,1 +1,1 @@
-export { EC2MachineProvider } from "./EC2MachineProvider"
+export { EC2MachineProvider as MachineProvider } from "./EC2MachineProvider"

@@ -1,5 +1,4 @@
 import { EC2 } from "aws-sdk"
-import { Machine } from "@iepaas/machine-provider-abstract"
 
 export interface PortRange {
 	from: number
@@ -12,7 +11,7 @@ export const createSecurityGroup = (
 	name: string,
 	description: string,
 	ports: Array<number | PortRange>,
-	machines: Array<Machine> = []
+	addresses: Array<string> = []
 ) =>
 	new Promise<string>((resolve, reject) => {
 		ec2.createSecurityGroup(
@@ -35,10 +34,10 @@ export const createSecurityGroup = (
 								FromPort: typeof it === "number" ? it : it.from,
 								ToPort: typeof it === "number" ? it : it.to,
 								IpRanges:
-									machines.length === 0
+									addresses.length === 0
 										? [{ CidrIp: "0.0.0.0/0" }]
-										: machines.map(it => ({
-												CidrIp: `${it.address}/32`
+										: addresses.map(it => ({
+												CidrIp: `${it}/32`
 											}))
 							}))
 						},

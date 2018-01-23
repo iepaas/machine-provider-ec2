@@ -1,9 +1,8 @@
+import fetch from "node-fetch"
 import { EC2 } from "aws-sdk"
 import { Machine, Snapshot } from "@iepaas/machine-provider-abstract"
-import { createKeyPair } from "./createKeyPair"
-import { deleteKeyPair } from "./deleteKeyPair"
-import { executeCommandsInMachine } from "./executeCommandsInMachine"
 import { CreateMachineOptions } from "../interfaces/CreateMachineOptions"
+import { allocateElasticIp } from "./allocateElasticIp"
 
 export async function createMachine(
 	ec2: EC2,
@@ -20,35 +19,43 @@ export async function createMachine(
 		initCommands
 	} = options
 
-	const keyPair = await createKeyPair(ec2)
-
 	const id = await createInstances(
 		ec2,
 		appName,
 		subnetId,
 		size,
 		machineName,
-		keyPair.name,
 		securityGroupId,
+		initCommands,
 		snapshot
 	)
 	await waitForInstancesRunning(ec2, id)
-	await associateElasticIpIfApplicable(ec2, id, elasticIpAllocationId)
+	await associateElasticIp(ec2, id, elasticIpAllocationId)
 	const machine = await getInstanceInformation(ec2, id)
 
-	await executeCommandsInMachine(
-		[
-			...initCommands,
-			// Clear the keyPair data from the instance
-			// This will make the instance unreachable from ssh
-			// unless it is able to regenerate this file by itself
-			"> .ssh/authorized_keys"
-		],
-		machine,
-		keyPair.content
+	await waitForCloudInitFinished(
+		machine.address,
+		3 /*m*/ * 60 /*s*/ * 1000 /*ms*/
 	)
 
-	deleteKeyPair(ec2, keyPair.name).catch(console.error)
+	// TODO errors in typings?
+	/*ec2.modifyInstanceAttribute(
+		{
+			InstanceId: id,
+			Attribute: "userData",
+			UserData: [
+				"#!/bin/bash",
+				"# The user data has been deleted because it might have",
+				"# contained sensitive information like API keys."
+			].join("\n")
+		},
+		err => {
+			if (err) {
+				console.error("Failed to delete the user data!")
+				console.error(err)
+			}
+		}
+	)*/
 
 	return machine
 }
@@ -59,8 +66,8 @@ const createInstances = (
 	subnetId: string,
 	size: string,
 	name: string,
-	keyPair: string,
 	securityGroup: string,
+	initCommands: Array<string> = [],
 	snapshot?: Snapshot
 ) =>
 	new Promise<string>((resolve, reject) =>
@@ -70,7 +77,6 @@ const createInstances = (
 				InstanceType: size,
 				MinCount: 1,
 				MaxCount: 1,
-				KeyName: keyPair,
 				SecurityGroupIds: [securityGroup],
 				TagSpecifications: [
 					{
@@ -87,6 +93,20 @@ const createInstances = (
 						]
 					}
 				],
+				UserData: new Buffer(
+					[
+						"#!/bin/bash",
+						...initCommands,
+						// The following set of commands create a "Web server"
+						// On port 3000 that returns 200 OK and disappears after
+						// serving the first (and only) request.
+						// We will poll <machine-ip>:3000 until we get
+						// our answer. Then we will be able to say that the
+						// machine setup has finished.
+						'echo "HTTP/1.1 200 OK" | nc -l 3000 > /dev/null'
+					].join("\n"),
+					"utf-8"
+				).toString("base64"),
 				SubnetId: subnetId
 			},
 			(err, data) => {
@@ -120,16 +140,68 @@ const waitForInstancesRunning = (ec2: EC2, id: string) =>
 		)
 	)
 
-const associateElasticIpIfApplicable = (
+// TODO this won't work in the browser because the lack of HTTPS
+// The best solution I can think of is create a middleman API that calls
+// the port 3000 on our machine and returns the result
+const waitForCloudInitFinished = async (address: string, timeout?: number) => {
+	async function isCloudInitFinished(): Promise<boolean> {
+		try {
+			await fetch(`http://${address}:3000`)
+			return false
+		} catch (e) {
+			if (e.code === "ECONNREFUSED") {
+				// The server can't be reached
+				// cloud-init is still running
+				return false
+			} else if (e.code === "ECONNRESET") {
+				// The server was reached
+				// cloud-init is finished
+				// The behaviour of nc is odd, and CONNRESET is what we get,
+				// but it's good enough
+				return true
+			} else {
+				throw e
+			}
+		}
+
+		// throw new Error("Expected an error to be throw when polling the machine")
+	}
+
+	await Promise.race<void>([
+		...(() => {
+			if (timeout) {
+				return [
+					new Promise<void>((_, reject) => {
+						setTimeout(() => {
+							reject(
+								new Error("The wait for cloud-init to finish " + "timed out")
+							)
+						}, timeout).unref()
+					})
+				]
+			} else {
+				return []
+			}
+		})(),
+		(async function poll() {
+			if (!await isCloudInitFinished()) {
+				await new Promise(r => setTimeout(r, 500))
+				await poll()
+			}
+		})()
+	])
+}
+
+const associateElasticIp = (
 	ec2: EC2,
 	instanceId: string,
 	ipAllocationId?: string
 ) =>
-	new Promise<void>((resolve, reject) => {
-		if (ipAllocationId) {
+	new Promise<void>(async (resolve, reject) => {
+		try {
 			ec2.associateAddress(
 				{
-					AllocationId: ipAllocationId,
+					AllocationId: ipAllocationId || (await allocateElasticIp(ec2)).allocationId,
 					InstanceId: instanceId
 				},
 				err => {
@@ -140,8 +212,8 @@ const associateElasticIpIfApplicable = (
 					}
 				}
 			)
-		} else {
-			resolve()
+		} catch (e) {
+			reject(e)
 		}
 	})
 

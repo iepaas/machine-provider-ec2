@@ -19,6 +19,7 @@ import {
 	CHILD_MACHINE_SIZE,
 	PARENT_MACHINE_SIZE,
 	REGION,
+	REPO_URL,
 	SECRET_ACCESS_KEY,
 	SECURITY_GROUP_BUILD_ID,
 	SECURITY_GROUP_CHILD_ID,
@@ -95,6 +96,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		}
 
 		await Promise.all([
+			this.setConfigValue(REPO_URL, get("repoUrl")),
 			this.setConfigValue(ACCESS_KEY_ID, get("accessKeyId")),
 			this.setConfigValue(SECRET_ACCESS_KEY, get("secretAccessKey")),
 			this.setConfigValue(REGION, get("region")),
@@ -145,25 +147,10 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				vpcId,
 				"iepaas-parent",
 				"iepaas parent machine",
-				[22, 80, 443, 4898]
+				[80, 443, 3000, 4898]
 			),
 			allocateElasticIp(await this.getEC2())
 		])
-
-		await Promise.all([this.setConfigValue(SECURITY_GROUP_PARENT_ID, parentSg)])
-
-		const parentMachine = await createMachine(await this.getEC2(), {
-			subnetId,
-			securityGroupId: parentSg,
-			appName: this.appName,
-			machineName: "iepaas parent",
-			size: (await this.getConfigValue(PARENT_MACHINE_SIZE))!,
-			initCommands: [
-				"curl -o- https://raw.githubusercontent.com/iepaas/iepaas/master/install.sh | bash",
-				"cd /iepaas && npm run set-machine-provider @iepaas/machine-provider-ec2"
-			],
-			elasticIpAllocationId: eip
-		})
 
 		const [buildSg, childSg] = await Promise.all([
 			createSecurityGroup(
@@ -171,25 +158,44 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				vpcId,
 				"iepaas-build",
 				"iepaas build machine",
-				[22],
-				[parentMachine]
+				[3000],
+				[eip.address]
 			),
 			createSecurityGroup(
 				await this.getEC2(),
 				vpcId,
 				"iepaas-child",
 				"iepaas child machine",
-				[22, { from: 3000, to: 4000 }],
-				[parentMachine]
+				[{ from: 3000, to: 4000 }],
+				[eip.address]
 			)
 		])
 
 		await Promise.all([
+			this.setConfigValue(SECURITY_GROUP_PARENT_ID, parentSg),
 			this.setConfigValue(SECURITY_GROUP_BUILD_ID, buildSg),
 			this.setConfigValue(SECURITY_GROUP_CHILD_ID, childSg)
 		])
 
-		return parentMachine
+		return await createMachine(await this.getEC2(), {
+			subnetId,
+			securityGroupId: parentSg,
+			appName: this.appName,
+			machineName: "iepaas parent",
+			size: (await this.getConfigValue(PARENT_MACHINE_SIZE))!,
+			initCommands: [
+				"curl -o- https://raw.githubusercontent.com/iepaas/iepaas/master/install.sh | bash",
+				"cd /iepaas && npm run set-machine-provider @iepaas/machine-provider-ec2",
+				...(await this.getAllConfigValues()).map(
+					it => `cd /iepaas && npm run set-config ${it.key} ${it.value}`
+				),
+				`cd /iepaas && npm run set-repo-url ${await this.getConfigValue(
+					REPO_URL
+				)}`,
+				"sudo chown -R ubuntu:ubuntu /iepaas"
+			],
+			elasticIpAllocationId: eip.allocationId
+		})
 	}
 
 	public async createMachine(

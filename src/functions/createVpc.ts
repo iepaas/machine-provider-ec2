@@ -9,7 +9,7 @@ export async function buildVpc(
 		addInternetGatewayToVpc(ec2, vpc)
 	])
 	const routeTable = await addRouteTableToSubnet(ec2, vpc, subnet)
-	await addInterentGatewayToRouteTable(ec2, igw, routeTable)
+	await addInternetGatewayToRouteTable(ec2, igw, routeTable)
 
 	return {
 		vpcId: vpc,
@@ -28,6 +28,15 @@ export const createVpc = (ec2: EC2) =>
 					reject(err)
 				} else {
 					resolve(data.Vpc.VpcId)
+					ec2.createTags({
+						Resources: [data.Vpc.VpcId],
+						Tags: [
+							{
+								Key: "Name",
+								Value: "iepaas VPC"
+							}
+						]
+					})
 				}
 			}
 		)
@@ -107,7 +116,7 @@ const addRouteTableToSubnet = (ec2: EC2, vpc: string, subnet: string) =>
 		)
 	})
 
-const addInterentGatewayToRouteTable = (
+const addInternetGatewayToRouteTable = (
 	ec2: EC2,
 	igw: string,
 	routeTable: string
