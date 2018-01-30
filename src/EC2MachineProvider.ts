@@ -185,14 +185,14 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 			size: (await this.getConfigValue(PARENT_MACHINE_SIZE))!,
 			initCommands: [
 				"curl -o- https://raw.githubusercontent.com/iepaas/iepaas/master/install.sh | bash",
-				"cd /iepaas && npm run set-machine-provider @iepaas/machine-provider-ec2",
+				"cd /iepaas && npm run set-machine-provider @iepaas/machine-provider-ec2 latest",
 				...(await this.getAllConfigValues()).map(
 					it => `cd /iepaas && npm run set-config ${it.key} ${it.value}`
 				),
 				"sudo chown -R ubuntu:ubuntu /iepaas"
 			],
 			postInitCommands: [
-				`cd /iepaas && npm run set-repo-url ${await this.getConfigValue(
+				`cd /iepaas && sudo npm run set-repo-url ${await this.getConfigValue(
 					REPO_URL
 				)}`
 			],

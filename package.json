@@ -1,6 +1,6 @@
 {
 	"name": "@iepaas/machine-provider-ec2",
-	"version": "0.0.1-dev.6",
+	"version": "0.0.1-dev.8",
 	"description": "An AWS EC2 Machine provider for iepaas",
 	"main": "build/index.js",
 	"scripts": {
@@ -8,7 +8,8 @@
 		"test:coverage": "nyc --extension .ts --reporter html --reporter text npm run test:integration",
 		"test": "npm run test:coverage",
 		"build": "tsc",
-		"reformat": "prettier --write \"**/*.ts\""
+		"reformat": "prettier --write \"**/*.ts\"",
+		"prepack": "npm run build"
 	},
 	"author": "Pablo Rodríguez <pabloviolin8@gmail.com>",
 	"license": "Apache-2.0",
