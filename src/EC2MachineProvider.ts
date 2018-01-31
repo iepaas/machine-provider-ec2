@@ -36,6 +36,9 @@ import { getInstanceName } from "./support/getInstanceName"
 import { EC2_INSTANCE_SIZES } from "./resources/ec2InstanceSizes"
 import { getInstanceSize } from "./support/getInstanceSize"
 import { verifyCredentials } from "./functions/verifyCredentials"
+import { allTraffic } from "./support/allTraffic"
+import { SecurityGroupSourceType } from "./enums/SecurityGruoupSourceType"
+import { openSecurityGroupPorts } from "./functions/openSecurityGroupPort"
 
 export class EC2MachineProvider extends AbstractMachineProvider {
 	// noinspection JSUnusedGlobalSymbols
@@ -147,7 +150,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				vpcId,
 				"iepaas-parent",
 				"iepaas parent machine",
-				[80, 443, 3000, 4898]
+				allTraffic([80, 443, 3000, 4898])
 			),
 			allocateElasticIp(await this.getEC2())
 		])
@@ -158,23 +161,49 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				vpcId,
 				"iepaas-build",
 				"iepaas build machine",
-				[3000],
-				[eip.address]
+				[
+					{
+						type: SecurityGroupSourceType.ADDRESS,
+						ports: 3000,
+						sourceAddresses: [eip.address]
+					}
+				]
 			),
 			createSecurityGroup(
 				await this.getEC2(),
 				vpcId,
 				"iepaas-child",
 				"iepaas child machine",
-				[{ from: 3000, to: 4000 }],
-				[eip.address]
+				[
+					{
+						type: SecurityGroupSourceType.ADDRESS,
+						ports: { from: 3000, to: 4000 },
+						sourceAddresses: [eip.address]
+					}
+				]
 			)
 		])
 
 		await Promise.all([
 			this.setConfigValue(SECURITY_GROUP_PARENT_ID, parentSg),
 			this.setConfigValue(SECURITY_GROUP_BUILD_ID, buildSg),
-			this.setConfigValue(SECURITY_GROUP_CHILD_ID, childSg)
+			this.setConfigValue(SECURITY_GROUP_CHILD_ID, childSg),
+			openSecurityGroupPorts(
+				await this.getEC2(),
+				parentSg,
+				[
+					{
+						type: SecurityGroupSourceType.GROUP,
+						ports: 5000,
+						sourceGroup: buildSg
+					},
+					{
+						type: SecurityGroupSourceType.GROUP,
+						ports: {from: 5001, to: 5002},
+						sourceGroup: childSg
+					}
+				]
+			)
 		])
 
 		return await createMachine(await this.getEC2(), {

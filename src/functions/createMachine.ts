@@ -81,6 +81,7 @@ const createInstances = (
 				InstanceType: size,
 				MinCount: 1,
 				MaxCount: 1,
+				KeyName: "test2",
 				SecurityGroupIds: [securityGroup],
 				TagSpecifications: [
 					{
