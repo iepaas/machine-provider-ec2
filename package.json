@@ -1,6 +1,6 @@
 {
 	"name": "@iepaas/machine-provider-ec2",
-	"version": "0.0.1-dev.10",
+	"version": "0.0.1-dev.11",
 	"description": "An AWS EC2 Machine provider for iepaas",
 	"main": "build/index.js",
 	"scripts": {

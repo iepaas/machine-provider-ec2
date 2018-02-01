@@ -38,13 +38,13 @@ import { getInstanceSize } from "./support/getInstanceSize"
 import { verifyCredentials } from "./functions/verifyCredentials"
 import { allTraffic } from "./support/allTraffic"
 import { SecurityGroupSourceType } from "./enums/SecurityGruoupSourceType"
-import { openSecurityGroupPorts } from "./functions/openSecurityGroupPort"
+import { openSecurityGroupPort } from "./functions/openSecurityGroupPort"
 
 export class EC2MachineProvider extends AbstractMachineProvider {
 	// noinspection JSUnusedGlobalSymbols
 	protected providerName = "iepaas/machine-provider-ec2"
 
-	private ec2?: AWS.EC2
+	private aws: { ec2: AWS.EC2; sts: AWS.STS } | null = null
 
 	constructor(appName: string, store: AbstractKeyValueStore) {
 		super(appName, store)
@@ -109,8 +109,8 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		])
 	}
 
-	private async getEC2() {
-		if (!this.ec2) {
+	private async getAWS() {
+		if (!this.aws) {
 			const [accessKeyId, secretAccessKey, region] = await Promise.all([
 				this.getConfigValue(ACCESS_KEY_ID),
 				this.getConfigValue(SECRET_ACCESS_KEY),
@@ -131,10 +131,21 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				region: region
 			})
 
-			this.ec2 = new AWS.EC2({ apiVersion: "2016-11-15" })
+			this.aws = {
+				ec2: new AWS.EC2({ apiVersion: "2016-11-15" }),
+				sts: new AWS.STS({ apiVersion: "2011-06-15" })
+			}
 		}
 
-		return this.ec2
+		return this.aws
+	}
+
+	private async getEC2() {
+		return (await this.getAWS()).ec2
+	}
+
+	private async getSTS() {
+		return (await this.getAWS()).sts
 	}
 
 	public async buildIepaasInfrastructure() {
@@ -147,6 +158,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		const [parentSg, eip] = await Promise.all([
 			createSecurityGroup(
 				await this.getEC2(),
+				await this.getSTS(),
 				vpcId,
 				"iepaas-parent",
 				"iepaas parent machine",
@@ -158,6 +170,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		const [buildSg, childSg] = await Promise.all([
 			createSecurityGroup(
 				await this.getEC2(),
+				await this.getSTS(),
 				vpcId,
 				"iepaas-build",
 				"iepaas build machine",
@@ -171,6 +184,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 			),
 			createSecurityGroup(
 				await this.getEC2(),
+				await this.getSTS(),
 				vpcId,
 				"iepaas-child",
 				"iepaas child machine",
@@ -188,8 +202,9 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 			this.setConfigValue(SECURITY_GROUP_PARENT_ID, parentSg),
 			this.setConfigValue(SECURITY_GROUP_BUILD_ID, buildSg),
 			this.setConfigValue(SECURITY_GROUP_CHILD_ID, childSg),
-			openSecurityGroupPorts(
+			openSecurityGroupPort(
 				await this.getEC2(),
+				await this.getSTS(),
 				parentSg,
 				[
 					{
@@ -199,7 +214,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 					},
 					{
 						type: SecurityGroupSourceType.GROUP,
-						ports: {from: 5001, to: 5002},
+						ports: { from: 5001, to: 5002 },
 						sourceGroup: childSg
 					}
 				]

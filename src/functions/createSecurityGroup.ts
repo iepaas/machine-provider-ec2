@@ -1,10 +1,11 @@
-import { EC2 } from "aws-sdk"
+import { EC2, STS } from "aws-sdk"
 import { createError } from "../support/AWSProviderError"
 import { SecurityGroupRule } from "../interfaces/SecurityGroupRule"
-import { openSecurityGroupPorts } from "./openSecurityGroupPort"
+import { openSecurityGroupPort } from "./openSecurityGroupPort"
 
 export const createSecurityGroup = (
 	ec2: EC2,
+	sts: STS,
 	vpc: string,
 	name: string,
 	description: string,
@@ -24,7 +25,7 @@ export const createSecurityGroup = (
 					const { GroupId } = data
 
 					resolve(
-						openSecurityGroupPorts(ec2, GroupId, rules).then(() => GroupId)
+						openSecurityGroupPort(ec2, sts, GroupId, rules).then(() => GroupId)
 					)
 				}
 			}
