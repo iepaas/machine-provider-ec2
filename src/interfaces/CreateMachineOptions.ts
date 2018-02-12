@@ -7,6 +7,7 @@ export interface CreateMachineOptions {
 	readonly securityGroupId: string
 	readonly size: string
 	readonly initCommands: Array<string>
+	readonly region: string
 	readonly postInitCommands?: Array<string>
 	readonly snapshot?: Snapshot
 	readonly elasticIpAllocationId?: string

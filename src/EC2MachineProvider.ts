@@ -223,6 +223,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		])
 
 		return await createMachine(await this.getEC2(), {
+			region: (await this.getConfigValue(REGION))!,
 			subnetId: await selectSubnet(subnetIds),
 			securityGroupId: parentSg,
 			appName: this.appName,
@@ -251,6 +252,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		snapshot?: Snapshot
 	): Promise<Machine> {
 		return createMachine(await this.getEC2(), {
+			region: (await this.getConfigValue(REGION))!,
 			appName: this.appName,
 			machineName: getInstanceName(type),
 			size: await getInstanceSize(type, this.getConfigValue.bind(this)),

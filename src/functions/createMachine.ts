@@ -4,6 +4,7 @@ import { Machine, Snapshot } from "@iepaas/machine-provider-abstract"
 import { CreateMachineOptions } from "../interfaces/CreateMachineOptions"
 import { allocateElasticIp } from "./allocateElasticIp"
 import { createError } from "../support/AWSProviderError"
+import { findDefaultAmiId } from "./findDefaultAmiId"
 
 export async function createMachine(
 	ec2: EC2,
@@ -18,7 +19,8 @@ export async function createMachine(
 		snapshot,
 		elasticIpAllocationId,
 		initCommands,
-		postInitCommands
+		postInitCommands,
+		region
 	} = options
 
 	const id = await createInstances(
@@ -28,6 +30,7 @@ export async function createMachine(
 		size,
 		machineName,
 		securityGroupId,
+		region,
 		initCommands,
 		postInitCommands,
 		snapshot
@@ -70,6 +73,7 @@ const createInstances = (
 	size: string,
 	name: string,
 	securityGroup: string,
+	region: string,
 	initCommands: Array<string> = [],
 	postInitCommands: Array<string> = [],
 	snapshot?: Snapshot
@@ -77,7 +81,7 @@ const createInstances = (
 	new Promise<string>((resolve, reject) =>
 		ec2.runInstances(
 			{
-				ImageId: snapshot ? snapshot.id : "ami-8fd760f6", // xenial
+				ImageId: snapshot ? snapshot.id : findDefaultAmiId(region),
 				InstanceType: size,
 				MinCount: 1,
 				MaxCount: 1,
