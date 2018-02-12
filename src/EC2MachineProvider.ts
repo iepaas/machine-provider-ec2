@@ -24,7 +24,7 @@ import {
 	SECURITY_GROUP_BUILD_ID,
 	SECURITY_GROUP_CHILD_ID,
 	SECURITY_GROUP_PARENT_ID,
-	SUBNET_ID,
+	SUBNET_IDS,
 	VPC_ID
 } from "./configKeys"
 import { buildVpc } from "./functions/createVpc"
@@ -39,6 +39,7 @@ import { verifyCredentials } from "./functions/verifyCredentials"
 import { allTraffic } from "./support/allTraffic"
 import { SecurityGroupSourceType } from "./enums/SecurityGruoupSourceType"
 import { openSecurityGroupPort } from "./functions/openSecurityGroupPort"
+import { selectSubnet } from "./functions/selectSubnet"
 
 export class EC2MachineProvider extends AbstractMachineProvider {
 	// noinspection JSUnusedGlobalSymbols
@@ -149,10 +150,10 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 	}
 
 	public async buildIepaasInfrastructure() {
-		const { vpcId, subnetId } = await buildVpc(await this.getEC2())
+		const { vpcId, subnetIds } = await buildVpc(await this.getEC2())
 		await Promise.all([
 			this.setConfigValue(VPC_ID, vpcId),
-			this.setConfigValue(SUBNET_ID, subnetId)
+			this.setConfigValue(SUBNET_IDS, subnetIds.join(","))
 		])
 
 		const [parentSg, eip] = await Promise.all([
@@ -162,7 +163,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				vpcId,
 				"iepaas-parent",
 				"iepaas parent machine",
-				allTraffic([80, 443, 3000, 4898])
+				allTraffic([22, 80, 443, 3000, 4898])
 			),
 			allocateElasticIp(await this.getEC2())
 		])
@@ -222,7 +223,7 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 		])
 
 		return await createMachine(await this.getEC2(), {
-			subnetId,
+			subnetId: await selectSubnet(subnetIds),
 			securityGroupId: parentSg,
 			appName: this.appName,
 			machineName: "iepaas parent",
@@ -253,7 +254,9 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 			appName: this.appName,
 			machineName: getInstanceName(type),
 			size: await getInstanceSize(type, this.getConfigValue.bind(this)),
-			subnetId: (await this.getConfigValue(SUBNET_ID))!,
+			subnetId: await selectSubnet(
+				(await this.getConfigValue(SUBNET_IDS))!.split(",")
+			),
 			securityGroupId: (await this.getConfigValue(
 				(() => {
 					switch (type) {

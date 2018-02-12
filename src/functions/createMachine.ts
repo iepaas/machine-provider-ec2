@@ -38,7 +38,7 @@ export async function createMachine(
 
 	await waitForCloudInitFinished(
 		machine.address,
-		3 /*m*/ * 60 /*s*/ * 1000 /*ms*/
+		10 /*m*/ * 60 /*s*/ * 1000 /*ms*/
 	)
 
 	// TODO errors in typings?
@@ -81,7 +81,6 @@ const createInstances = (
 				InstanceType: size,
 				MinCount: 1,
 				MaxCount: 1,
-				KeyName: "test2",
 				SecurityGroupIds: [securityGroup],
 				TagSpecifications: [
 					{
@@ -121,7 +120,9 @@ const createInstances = (
 					!data.Instances ||
 					data.Instances.filter(it => !it.InstanceId).length > 0
 				) {
-					reject(new Error(`Error when creating machine: ${err.message}`))
+					reject(
+						createError(err, `When running an instance on subnet ${subnetId}`)
+					)
 				} else {
 					resolve(data.Instances[0].InstanceId)
 				}

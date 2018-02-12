@@ -3,18 +3,25 @@ import { createError } from "../support/AWSProviderError"
 
 export async function buildVpc(
 	ec2: EC2
-): Promise<{ vpcId: string; subnetId: string }> {
-	const vpc = await createVpc(ec2)
-	const [subnet, igw] = await Promise.all([
-		addSubnetToVpc(ec2, vpc),
+): Promise<{ vpcId: string; subnetIds: Array<string> }> {
+	const [vpc, zones] = await Promise.all([
+		createVpc(ec2),
+		getAvailabilityZones(ec2)
+	])
+	const [subnets, igw] = await Promise.all([
+		Promise.all(zones.map((zone, i) => addSubnetToVpc(ec2, vpc, zone, i))),
 		addInternetGatewayToVpc(ec2, vpc)
 	])
-	const routeTable = await addRouteTableToSubnet(ec2, vpc, subnet)
-	await addInternetGatewayToRouteTable(ec2, igw, routeTable)
+	const routeTables = await Promise.all(
+		subnets.map(it => addRouteTableToSubnet(ec2, vpc, it))
+	)
+	await Promise.all(
+		routeTables.map(it => addInternetGatewayToRouteTable(ec2, igw, it))
+	)
 
 	return {
 		vpcId: vpc,
-		subnetId: subnet
+		subnetIds: subnets
 	}
 }
 
@@ -43,12 +50,29 @@ export const createVpc = (ec2: EC2) =>
 		)
 	})
 
-const addSubnetToVpc = (ec2: EC2, vpc: string) =>
+export const getAvailabilityZones = (ec2: EC2) =>
+	new Promise<Array<string>>((resolve, reject) =>
+		ec2.describeAvailabilityZones((err, data) => {
+			if (err || !data.AvailabilityZones) {
+				reject(createError(err, "Trying to get the AWS Availability Zones"))
+			} else {
+				resolve(data.AvailabilityZones.map(it => it.ZoneName!))
+			}
+		})
+	)
+
+const addSubnetToVpc = (
+	ec2: EC2,
+	vpc: string,
+	availabilityZone: string,
+	zoneIndex: number
+) =>
 	new Promise<string>((resolve, reject) => {
 		ec2.createSubnet(
 			{
 				VpcId: vpc,
-				CidrBlock: "10.0.0.0/16"
+				CidrBlock: `10.0.${zoneIndex * 16}.0/20`,
+				AvailabilityZone: availabilityZone
 			},
 			(err, data) => {
 				if (err || !data.Subnet || !data.Subnet.SubnetId) {
