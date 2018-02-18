@@ -36,6 +36,7 @@ export async function createMachine(
 		snapshot
 	)
 	await waitForInstancesRunning(ec2, id)
+	// TODO switch to internal IPs
 	await associateElasticIp(ec2, id, elasticIpAllocationId)
 	const machine = await getInstanceInformation(ec2, id)
 
@@ -83,6 +84,7 @@ const createInstances = (
 			{
 				ImageId: snapshot ? snapshot.id : findDefaultAmiId(region),
 				InstanceType: size,
+				Ipv6AddressCount: 1,
 				MinCount: 1,
 				MaxCount: 1,
 				SecurityGroupIds: [securityGroup],
@@ -162,7 +164,7 @@ const waitForCloudInitFinished = async (address: string, timeout?: number) => {
 			await fetch(`http://${address}:3000`)
 			return false
 		} catch (e) {
-			if (e.code === "ECONNREFUSED") {
+			if (e.code === "ECONNREFUSED" || e.code === "ETIMEDOUT") {
 				// The server can't be reached
 				// cloud-init is still running
 				return false
