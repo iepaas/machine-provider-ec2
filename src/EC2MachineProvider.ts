@@ -177,9 +177,9 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				"iepaas build machine",
 				[
 					{
-						type: SecurityGroupSourceType.ADDRESS,
-						ports: 3000,
-						sourceAddresses: [eip.address]
+						type: SecurityGroupSourceType.GROUP,
+						ports: 5000,
+						sourceGroup: parentSg
 					}
 				]
 			),
@@ -191,9 +191,9 @@ export class EC2MachineProvider extends AbstractMachineProvider {
 				"iepaas child machine",
 				[
 					{
-						type: SecurityGroupSourceType.ADDRESS,
-						ports: { from: 3000, to: 4000 },
-						sourceAddresses: [eip.address]
+						type: SecurityGroupSourceType.GROUP,
+						ports: 5000,
+						sourceGroup: parentSg
 					}
 				]
 			)

@@ -1,6 +1,6 @@
 {
 	"name": "@iepaas/machine-provider-ec2",
-	"version": "0.0.1-dev.15",
+	"version": "0.0.1-dev.17",
 	"description": "An AWS EC2 Machine provider for iepaas",
 	"main": "build/index.js",
 	"scripts": {
@@ -27,7 +27,7 @@
 	},
 	"dependencies": {
 		"@iepaas/abstract-key-value-store": "0.0.1-dev.4",
-		"@iepaas/machine-provider-abstract": "0.0.1-dev.10",
+		"@iepaas/machine-provider-abstract": "0.0.1-dev.11",
 		"@iepaas/resource-provider-abstract": "0.0.1-dev.4",
 		"aws-sdk": "^2.186.0",
 		"source-map-support": "^0.5.0",

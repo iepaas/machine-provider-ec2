@@ -2,7 +2,6 @@ import fetch from "node-fetch"
 import { EC2 } from "aws-sdk"
 import { Machine, Snapshot } from "@iepaas/machine-provider-abstract"
 import { CreateMachineOptions } from "../interfaces/CreateMachineOptions"
-import { allocateElasticIp } from "./allocateElasticIp"
 import { createError } from "../support/AWSProviderError"
 import { findDefaultAmiId } from "./findDefaultAmiId"
 
@@ -36,12 +35,15 @@ export async function createMachine(
 		snapshot
 	)
 	await waitForInstancesRunning(ec2, id)
-	// TODO switch to internal IPs
-	await associateElasticIp(ec2, id, elasticIpAllocationId)
+
+	if (elasticIpAllocationId) {
+		await associateElasticIp(ec2, id, elasticIpAllocationId)
+	}
+
 	const machine = await getInstanceInformation(ec2, id)
 
 	await waitForCloudInitFinished(
-		machine.address,
+		machine.publicAddress || machine.privateAddress,
 		10 /*m*/ * 60 /*s*/ * 1000 /*ms*/
 	)
 
@@ -84,10 +86,19 @@ const createInstances = (
 			{
 				ImageId: snapshot ? snapshot.id : findDefaultAmiId(region),
 				InstanceType: size,
-				Ipv6AddressCount: 1,
+				NetworkInterfaces: [
+					{
+						AssociatePublicIpAddress: true,
+						Ipv6AddressCount: 1,
+						DeleteOnTermination: true,
+						DeviceIndex: 0,
+						SubnetId: subnetId,
+						Groups: [securityGroup],
+						Description: "Managed by iepaas"
+					}
+				],
 				MinCount: 1,
 				MaxCount: 1,
-				SecurityGroupIds: [securityGroup],
 				TagSpecifications: [
 					{
 						ResourceType: "instance",
@@ -117,8 +128,7 @@ const createInstances = (
 						...postInitCommands
 					].join("\n"),
 					"utf-8"
-				).toString("base64"),
-				SubnetId: subnetId
+				).toString("base64")
 			},
 			(err, data) => {
 				if (
@@ -208,14 +218,13 @@ const waitForCloudInitFinished = async (address: string, timeout?: number) => {
 const associateElasticIp = (
 	ec2: EC2,
 	instanceId: string,
-	ipAllocationId?: string
+	ipAllocationId: string
 ) =>
 	new Promise<void>(async (resolve, reject) => {
 		try {
 			ec2.associateAddress(
 				{
-					AllocationId:
-						ipAllocationId || (await allocateElasticIp(ec2)).allocationId,
+					AllocationId: ipAllocationId,
 					InstanceId: instanceId
 				},
 				err => {
@@ -256,7 +265,8 @@ const getInstanceInformation = (ec2: EC2, id: string) =>
 
 					resolve({
 						id: instance.InstanceId!,
-						address: instance.PublicIpAddress!
+						publicAddress: instance.PublicIpAddress,
+						privateAddress: instance.PrivateIpAddress!
 					})
 				}
 			}
